@@ -21,8 +21,9 @@ from crdt_coordinator import CRDTCoordinator
 from drift_log_indexer import DriftLogIndexer, create_drift_log
 from repo_cartographer import RepoCartographer
 from necrosis_detector import NecrosisDetector, create_necrosis_detector
+from tidepool_oracle import TidepoolOracle, create_tidepool_oracle
 
-_AGENT_VERSION = "0.2.0"
+_AGENT_VERSION = "0.3.0"
 _SUPPORTED_COMMANDS = (
     "claim_task", "narrate_staged", "narrate_diff", "deposit_bottle",
     "scan_bottles", "health_check", "analyze_crdt_impact",
@@ -32,6 +33,9 @@ _SUPPORTED_COMMANDS = (
     "index_repo", "get_impact_analysis", "get_fleet_map",
     "record_heartbeat", "beachcomb_scan", "get_fleet_pulse",
     "get_necrosis_report",
+    # v0.3.0 — Tidepool Oracle
+    "record_dream", "consult_oracle", "get_fleet_imagination",
+    "get_wisdom_report", "run_dream_simulation",
 )
 
 
@@ -63,6 +67,8 @@ class SmartCRDTAgent:
         self.drift_log = DriftLogIndexer(agent_id=self._agent_id)
         self.cartographer = RepoCartographer()
         self.necrosis = NecrosisDetector()
+        # v0.3.0 — emergent consensus engine from DeepSeek creative session
+        self.tidepool = TidepoolOracle()
 
     @property
     def repo_root(self) -> Optional[str]:  # pragma: no cover
@@ -427,6 +433,43 @@ class SmartCRDTAgent:
     def get_necrosis_report(self) -> str:
         """Generate a markdown report of fleet necrosis status."""
         return self.necrosis.export_report()
+
+    # ------------------------------------------------------------------
+    # Tidepool Oracle (v0.3.0 — emergent consensus)
+    # ------------------------------------------------------------------
+
+    def record_dream(self, agent_id: str, scenario: str, action: str,
+                     predicted_outcome: str, confidence: float = 0.7,
+                     tags: Optional[List[str]] = None,
+                     parent_ids: Optional[List[str]] = None) -> dict:
+        """Record a hypothetical dream for fleet consensus building."""
+        return self.tidepool.record_dream(
+            agent_id=agent_id, scenario=scenario, action=action,
+            predicted_outcome=predicted_outcome, confidence=confidence,
+            tags=tags or [], parent_ids=parent_ids or [],
+        )
+
+    def consult_oracle(self, scenario: str, min_confidence: float = 0.5) -> dict:
+        """Ask the Tidepool Oracle for fleet consensus on a scenario."""
+        self.tidepool.merge_all()
+        return self.tidepool.consult(scenario, min_confidence=min_confidence)
+
+    def get_fleet_imagination(self) -> dict:
+        """Get the fleet's collective imagination metrics."""
+        self.tidepool.merge_all()
+        return self.tidepool.get_fleet_pulse()
+
+    def get_wisdom_report(self) -> str:
+        """Generate a comprehensive wisdom report from accumulated dreams."""
+        return self.tidepool.get_wisdom_report()
+
+    def run_dream_simulation(self, scenarios: List[str],
+                             agents: Optional[List[str]] = None) -> dict:
+        """Run a simulation round of dreaming across agents."""
+        return self.tidepool.run_simulation_round(
+            scenarios=scenarios,
+            agents=agents or ["oracle1", "navigator", "datum", "architect", "engineer"],
+        )
 
     # ------------------------------------------------------------------
     # Command dispatcher
