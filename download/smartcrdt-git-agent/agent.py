@@ -1,8 +1,10 @@
 """SmartCRDT Git-Agent Orchestrator.
 
 Central coordination hub that glues together :class:`CommitNarrator`,
-:class:`MonorepoAwareness`, :class:`FleetBridge`, and
-:class:`CRDTCoordinator` into a single ``SmartCRDTAgent`` facade.
+:class:`MonorepoAwareness`, :class:`FleetBridge`,
+:class:`CRDTCoordinator`, :class:`DriftLogIndexer`,
+:class:`RepoCartographer`, and :class:`NecrosisDetector` into a
+single ``SmartCRDTAgent`` facade.
 
 Python 3.9+ stdlib only — zero external dependencies.
 """
@@ -16,12 +18,20 @@ from commit_narrator import CommitNarrator
 from monorepo_awareness import MonorepoAwareness
 from fleet_bridge import FleetBridge
 from crdt_coordinator import CRDTCoordinator
+from drift_log_indexer import DriftLogIndexer, create_drift_log
+from repo_cartographer import RepoCartographer
+from necrosis_detector import NecrosisDetector, create_necrosis_detector
 
-_AGENT_VERSION = "0.1.0"
+_AGENT_VERSION = "0.2.0"
 _SUPPORTED_COMMANDS = (
     "claim_task", "narrate_staged", "narrate_diff", "deposit_bottle",
     "scan_bottles", "health_check", "analyze_crdt_impact",
     "get_monorepo_health", "run_workshop", "onboard",
+    # v0.2.0 — new subsystems from Pelagic roundtable simulations
+    "record_drift", "query_drift", "get_drift_metrics",
+    "index_repo", "get_impact_analysis", "get_fleet_map",
+    "record_heartbeat", "beachcomb_scan", "get_fleet_pulse",
+    "get_necrosis_report",
 )
 
 
@@ -43,11 +53,16 @@ class SmartCRDTAgent:
         self._repo_root: Optional[str] = repo_root
         self._session: int = 0
         self._claimed_tasks: Dict[str, Dict[str, Any]] = {}
+        self._agent_id: str = "smartcrdt-git-agent"
 
         self.narrator = CommitNarrator(repo_root=repo_root or ".")
         self.monorepo = MonorepoAwareness(repo_root=repo_root)
         self.fleet = FleetBridge(repo_root=repo_root)
         self.crdt = CRDTCoordinator()
+        # v0.2.0 — new subsystems from Pelagic roundtable simulations
+        self.drift_log = DriftLogIndexer(agent_id=self._agent_id)
+        self.cartographer = RepoCartographer()
+        self.necrosis = NecrosisDetector()
 
     @property
     def repo_root(self) -> Optional[str]:  # pragma: no cover
@@ -312,6 +327,106 @@ class SmartCRDTAgent:
         summary["monorepo_health"] = self.monorepo.health_check().get("status", "unknown")
         summary["onboarded_at"] = datetime.now(timezone.utc).isoformat()
         return summary
+
+    # ------------------------------------------------------------------
+    # Drift Log (v0.2.0 — Pelagic roundtable)
+    # ------------------------------------------------------------------
+
+    def record_drift(self, event_type: str, agent_id: Optional[str] = None,
+                     payload: Optional[dict] = None, parent_ids: Optional[List[str]] = None) -> dict:
+        """Record a drift event in the append-only CRDT log.
+
+        Returns the recorded event dict with ID, timestamp, and vector clock.
+        """
+        return self.drift_log.record_event(
+            event_type=event_type,
+            agent_id=agent_id or self._agent_id,
+            payload=payload,
+            parent_ids=parent_ids,
+        )
+
+    def query_drift(self, agent_id: Optional[str] = None,
+                    event_type: Optional[str] = None,
+                    since: Optional[str] = None, until: Optional[str] = None,
+                    limit: int = 100) -> List[dict]:
+        """Query the drift log with optional filters.
+
+        Parameters
+        ----------
+        agent_id : str, optional
+            Filter by agent identifier.
+        event_type : str, optional
+            Filter by event type (e.g. ``"bottle_sent"``, ``"task_claimed"``).
+        since / until : str, optional
+            ISO-8601 timestamp bounds.
+        limit : int
+            Maximum events to return.
+        """
+        return self.drift_log.query(
+            agent_id=agent_id, event_type=event_type,
+            since=since, until=until, limit=limit,
+        )
+
+    def get_drift_metrics(self) -> dict:
+        """Compute fleet drift statistics from the drift log."""
+        return self.drift_log.get_drift_metrics()
+
+    # ------------------------------------------------------------------
+    # Repo Cartographer (v0.2.0 — Pelagic roundtable)
+    # ------------------------------------------------------------------
+
+    def index_repo(self, repo_name: str, metadata: Optional[dict] = None) -> dict:
+        """Add or update a repo in the fleet dependency graph."""
+        return self.cartographer.index_repo(repo_name, metadata=metadata)
+
+    def add_dependency(self, from_repo: str, to_repo: str, strength: str = "strong") -> dict:
+        """Add a dependency edge between two repos."""
+        return self.cartographer.add_dependency(from_repo, to_repo, strength=strength)
+
+    def get_impact_analysis(self, repo_name: str, depth: int = 3) -> dict:
+        """Analyse what repos are affected by changes to *repo_name*."""
+        return self.cartographer.get_impact_analysis(repo_name, depth=depth)
+
+    def get_fleet_map(self) -> dict:
+        """Generate a complete fleet map with clusters, cycles, and health."""
+        return {
+            "clusters": self.cartographer.get_cluster_map(),
+            "cycles": self.cartographer.detect_cycles(),
+            "orphans": self.cartographer.find_orphans(),
+            "health": self.cartographer.compute_fleet_health(),
+            "topo_order": self.cartographer.topological_sort(),
+            "total_repos": self.cartographer.get_repo_count(),
+        }
+
+    # ------------------------------------------------------------------
+    # Necrosis Detector (v0.2.0 — Pelagic roundtable)
+    # ------------------------------------------------------------------
+
+    def record_heartbeat(self, agent_id: str, test_count: int = 0,
+                         tasks_completed: int = 0, repo_count: int = 0,
+                         status: str = "active", metadata: Optional[dict] = None) -> dict:
+        """Record an agent heartbeat and check for state transitions."""
+        return self.necrosis.record_heartbeat({
+            "agent_id": agent_id,
+            "timestamp": datetime.now(timezone.utc).timestamp(),
+            "test_count": test_count,
+            "tasks_completed": tasks_completed,
+            "repo_count": repo_count,
+            "status": status,
+            "metadata": metadata or {},
+        })
+
+    def beachcomb_scan(self) -> List[dict]:
+        """Run a beachcomb patrol scan across all tracked agents."""
+        return self.necrosis.beachcomb_scan()
+
+    def get_fleet_pulse(self) -> dict:
+        """Get aggregate fleet health pulse (0.0–1.0)."""
+        return self.necrosis.get_fleet_pulse()
+
+    def get_necrosis_report(self) -> str:
+        """Generate a markdown report of fleet necrosis status."""
+        return self.necrosis.export_report()
 
     # ------------------------------------------------------------------
     # Command dispatcher
